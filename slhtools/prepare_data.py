@@ -148,7 +148,7 @@ def get_hamiltonian_and_basis_information_from_gpw(gpwfilename: str):
 
     # We set scalapack here even one a single core since that enables
     # sparse atomic corrections.
-    calculation = GPAW(gpwfilename, parallel={"sl_auto": True}).calculation
+    calculation = GPAW(gpwfilename, parallel={"sl_auto": True})._dft
     ls_dict = get_basis_indices_from_calculation(calculation)
     matcalc = calculation.scf_loop.hamiltonian.create_hamiltonian_matrix_calculator(
         calculation.state
