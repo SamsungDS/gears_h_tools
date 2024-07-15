@@ -86,14 +86,17 @@ def prepare_gpaw_slh_snapshot(
             atoms,
             block_sizes,
         )
+    ii_list = [blocked_hamiltonian.get_block(i,i) for i in range(atoms.get_global_number_of_atoms())]
+    ii_array = np.array(ii_list, dtype=object)
     ij, D, hlist = filter_pairs_by_hblock_magnitude(
         ij,
         D,
         blocked_hamiltonian=blocked_hamiltonian,
         threshold=block_write_threshold,
     )
+    np.savez(directory / "hblocks_on-diagonal.npz", ii_array, allow_pickle=True)
     np.savez(directory / "ijD.npz", ij=ij, D=D)
-    np.savez(directory / "hblocks.npz", hblocks=np.array(hlist, dtype=object), allow_pickle=True)
+    np.savez(directory / "hblocks_off-diagonal.npz", hblocks=np.array(hlist, dtype=object), allow_pickle=True)
 
     with open(directory / "orbital_ells.json", mode="w") as fd:
         json.dump(ls_dict, fd)
