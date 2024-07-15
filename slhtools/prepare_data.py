@@ -94,7 +94,7 @@ def prepare_gpaw_slh_snapshot(
         blocked_hamiltonian=blocked_hamiltonian,
         threshold=block_write_threshold,
     )
-    np.savez(directory / "hblocks_on-diagonal.npz", ii_array, allow_pickle=True)
+    np.savez(directory / "hblocks_on-diagonal.npz", hblocks=ii_array, allow_pickle=True)
     np.savez(directory / "ijD.npz", ij=ij, D=D)
     np.savez(directory / "hblocks_off-diagonal.npz", hblocks=np.array(hlist, dtype=object), allow_pickle=True)
 
