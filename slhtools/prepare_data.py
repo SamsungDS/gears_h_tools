@@ -49,7 +49,7 @@ def prepare_gpaw_slh_snapshot(
         assert overlap_calc_parameters is not None
         H_MM = None
         fermi_levels = None
-        (S_MM, ls_dict, basis_permutation_dict) = get_overlap_and_basis_information(
+        (S_MM, ls_dict) = get_overlap_and_basis_information(
             atoms, overlap_calc_parameters
         )
 
@@ -138,12 +138,12 @@ def get_overlap_and_basis_information(atoms, parameters):
     from gpaw.new.calculation import DFTCalculation
 
     calculation = DFTCalculation.from_parameters(atoms, parameters)
-    ls_dict, basisdict = get_basis_indices_from_calculation(calculation)
+    ls_dict = get_basis_indices_from_calculation(calculation)
     # TODO: Would be nice to be able to get the k-space S_MM and then FT back
     S_MM = calculation.state.ibzwfs.wfs_qs[0][0].S_MM
     S_MM.gather()
 
-    return S_MM.data, ls_dict, basisdict
+    return S_MM.data, ls_dict
 
 
 def get_hamiltonian_and_basis_information_from_gpw(gpwfilename: str):
