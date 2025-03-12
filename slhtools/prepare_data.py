@@ -26,6 +26,7 @@ def prepare_gpaw_slh_snapshot(
     reference_dtype=np.float32,
     reference_arraytype="sparse",
     block_write_threshold=1e-4,
+    unique_pairs: bool = True
 ):
     atoms = read(gpwfilename)
     directory = Path(directory)
@@ -36,7 +37,7 @@ def prepare_gpaw_slh_snapshot(
     # This gets us ij (atom1 atom2) matrix elements as we desire
     # with a cutoff that we decide. If there are nonzero hamiltonian matrix
     # elements outside this cutoff, for the moment, we don't care.
-    ij, D = get_neighbourlist_ijD(atoms, cutoff)
+    ij, D = get_neighbourlist_ijD(atoms, cutoff, unique_pairs)
 
     if not overlap_only:
         (
