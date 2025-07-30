@@ -9,7 +9,10 @@ Currently, the main functionality is to convert `gpaw` LCAO calculation outputs 
 `gears_h_tools` requires `gpaw` to function.
 As discussed in [the next section](#speeding-up-conversion), `gpaw>=25.7.0` is recommended.
 
-The easiest way to install `gpaw` such that it has `scalapack` and `elpa` to accelerate calculations` is with `spack`.
+> **WARNING**: there is currently a bug in the released version of `gpaw` 25.7.0 that breaks the extraction of LCAO Hamiltonians.
+> A bug fix is pending (see [here](https://gitlab.com/gpaw/gpaw/-/merge_requests/2836) for details), but until it has been merged and a new release containing it is available, you will either need to manually add the fix yourself or use an older version of `gpaw`. If you choose the latter approach, simply change the version number below.
+
+The easiest way to install `gpaw` such that it has `scalapack` and `elpa` to accelerate calculations is with `spack`.
 First, follow spack's installation instructions [here](https://github.com/spack/spack?tab=readme-ov-file#installation).
 
 Then, run the following commands:
