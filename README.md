@@ -4,6 +4,35 @@
 Currently, the main functionality is to convert `gpaw` LCAO calculation outputs to the input format for `gears_h` training.
 `gears_h_tools` can also be used to compute the $S$-matrix for a structure, which is helpful for inferred Hamiltonians, as you will need the $S$-matrix to compute the eigenvalues, among many other properties.
 
+## Installation
+
+`gears_h_tools` requires `gpaw` to function.
+As discussed in [the next section](#speeding-up-conversion), `gpaw>=25.7.0` is recommended.
+
+The easiest way to install `gpaw` such that it has `scalapack` and `elpa` to accelerate calculations` is with `spack`.
+First, follow spack's installation instructions [here](https://github.com/spack/spack?tab=readme-ov-file#installation).
+
+Then, run the following commands:
+```shell
+spack env create gears_h_tools
+spacktivate -p gears_h_tools
+spack add py-pip py-gpaw@25.7.0
+spack concretize
+spack install
+```
+
+This should successfully install `gpaw` v25.7.0. 
+If later versions of `gpaw` are available, simply adjust the version number.
+
+Next, we need to install `gears_h_tools` into the same environment:
+
+```shell
+cd path/to/gears_h_tools
+pip install .
+```
+
+Whenever you need to use `gears_h_tools`, simply set up your `spack` environment as you did in the installation instructions and then run `spacktivate -p gears_h_tools`.
+
 ## Speeding up conversion
 
 We recommend using `gpaw>=25.7.0` for converting your output files to `gears_h` training data because it includes [this commit](https://gitlab.com/gpaw/gpaw/-/merge_requests/2817), which greatly accelerates the process.
