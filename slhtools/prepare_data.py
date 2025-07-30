@@ -8,7 +8,7 @@ from ase.data import atomic_numbers
 from ase.io import read
 from ase.units import Ha
 
-from slhtools.utils import (
+from gears_h_tools.utils import (
     BlockedMatrix,
     get_neighbourlist_ijD,
     make_hamiltonian_blockedmatrix,
