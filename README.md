@@ -1,6 +1,6 @@
 # GEARS H Tools
 
-`gears_h_tools` is a helper package for `gears_h`.
+`gears_h_tools` is a helper package for [`gears_h`](https://github.com/SamsungDS/gears_h/tree/main).
 Currently, the main functionality is to convert `gpaw` LCAO calculation outputs to the input format for `gears_h` training.
 `gears_h_tools` can also be used to compute the $S$-matrix for a structure, which is helpful for inferred Hamiltonians, as you will need the $S$-matrix to compute the eigenvalues, among many other properties.
 
