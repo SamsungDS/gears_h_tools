@@ -32,6 +32,22 @@ def get_neighbourlist_ijD(
 
     return ij, D
 
+def get_neighbourlist_ijDS(atoms: ase.Atoms, 
+                           cutoff: float):
+    """Returns a tuple of an array of atom-pair indices, an array of vectors 
+    for that pair, and an array of shift vectors.
+
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        ASE Atoms object for which to compute the neighborlist.
+    cutoff : float
+        Maximum distance to search for neighbors
+    """
+    i, j, D, S = neighbour_list("ijDS", atoms=atoms, cutoff=cutoff)
+    ij = np.column_stack([i, j]).astype(int)
+
+    return ij, D, S
 
 class BlockedHamiltonian:
     def __init__(
