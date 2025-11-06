@@ -1,5 +1,8 @@
+from collections import defaultdict
 from pathlib import Path
+import re
 
+from ase.data import atomic_numbers
 from ase.units import Rydberg
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -73,3 +76,35 @@ def read_S_csr(csr_path: Path,
             i += 1
     
     return csr_mat
+
+def get_abacus_ells_dict(logfile_path: Path | str) -> dict[int, list[int]]:
+    """Returns a dictionary of the angular momenta of the basis
+    functions for each species in the system.
+
+    Args:
+        logfile_path (Path | str): Path to the log file, typically named running_scf.log.
+
+    Returns:
+        dict[int, list[int]]: Dictionary with keys that are atomic species numbers
+                              and values that are lists of the angular momenta of
+                              the basis functions.
+    """
+    # I am truly sorry for this regex.
+    atom_ells_pattern = re.compile(r"\sAtom label = (.+)\n((?:(?!^\s+Number of atoms for this type)[\s\S])*)", re.MULTILINE)
+    ell_zeta_pattern = re.compile(r"\s+L=(\d), number of zeta = (\d)")
+    with open(logfile_path, "r") as f:
+        log = f.read()
+
+    ells_dict = defaultdict(list)
+    
+    atom_ells_matches = atom_ells_pattern.findall(log)
+    for match in atom_ells_matches:
+        atomic_species = match[0]
+        ells_zetas = ell_zeta_pattern.findall(match[1])
+        for ez_match in ells_zetas:
+            ell = int(ez_match[0])
+            nzeta = int(ez_match[1])
+            for i in range(nzeta):
+                ells_dict[atomic_numbers[atomic_species]].append(ell)
+    
+    return ells_dict
