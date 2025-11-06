@@ -49,59 +49,6 @@ def get_neighbourlist_ijDS(atoms: ase.Atoms,
 
     return ij, D, S
 
-class BlockedHamiltonian:
-    def __init__(
-        self,
-        atoms: ase.Atoms,
-        nbasis_species_dict: dict,
-        hamiltonian,
-        orbitals_permutation_dict=None,
-    ):
-        """_summary_
-
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            _description_
-        nbasis_species_dict : dict
-            Number of basis functions for each element in the hamiltonian
-        hamiltonian : np.ndarray
-            2D array, the hamiltonian matrix
-        orbitals_permutation_dict : dict
-            Orbital permutation vector for each element's basis functions.
-        """
-        self.atoms = atoms
-        self.nbasis_species_dict = nbasis_species_dict
-        self.basis_starts = (
-            np.cumsum([nbasis_species_dict[s] for s in atoms.symbols])
-            - nbasis_species_dict[atoms[0].symbol]
-        )
-        self.hamiltonian = hamiltonian
-        self.opd = orbitals_permutation_dict
-        self.permute = False if self.opd is None else True
-
-    def get_block(self, i, j):
-        atoms_i_symbol = self.atoms[i].symbol
-        atoms_j_symbol = self.atoms[j].symbol
-        istart = self.basis_starts[i]
-        istop = istart + self.nbasis_species_dict[atoms_i_symbol]
-        jstart = self.basis_starts[j]
-        jstop = jstart + self.nbasis_species_dict[atoms_j_symbol]
-        try:
-            hblock = (
-                self.permute_rowcols(
-                    self.hamiltonian[istart:istop, jstart:jstop],
-                    self.opd[atoms_i_symbol],
-                    self.opd[atoms_j_symbol],
-                )
-                if self.permute
-                else self.hamiltonian[istart:istop, jstart:jstop]
-            )
-            return hblock
-        except KeyError:
-            print(list(self.opd.keys()))
-
-
 class BlockedMatrix:
     def __init__(
         self,
