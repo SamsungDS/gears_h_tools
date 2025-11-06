@@ -109,10 +109,10 @@ class BlockedMatrix:
 
 
 def make_hamiltonian_blockedmatrix(
-    H_MM, atoms, basis_block_sizes
+    H_MM, atoms, basis_block_sizes, permutation_dict=None
 ):
     H_MM_blocked = BlockedMatrix(
-        H_MM, atoms.numbers, basis_block_sizes
+        H_MM, atoms.numbers, basis_block_sizes, permutation_dict
     )
     return H_MM_blocked
 
