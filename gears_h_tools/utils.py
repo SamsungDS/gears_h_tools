@@ -130,17 +130,21 @@ class BlockedMatrix:
         self.block_sizes = block_sizes
         self.block_starts = np.concatenate([[0], np.cumsum(block_sizes[:-1])])
         self.pd = permutation_dict
-
+        self.permute = False if self.pd is None else True
+    
     def get_block(self, i, j):
         istart = self.block_starts[i]
         istop = istart + self.block_sizes[i]
         jstart = self.block_starts[j]
         jstop = jstart + self.block_sizes[j]
-        try:
+        
+        if self.permute:
+            block = self.permute_rowcols(self.matrix[istart:istop, jstart:jstop],
+                                         self.pd[i], self.pd[j])
+        else:
             block = self.matrix[istart:istop, jstart:jstop]
-            return block
-        except Exception as e:
-            raise e
+        
+        return block
 
     def permute_rowcols(self, block, prows, pcols):
         # This particular part of the code doesn't need to be performant
