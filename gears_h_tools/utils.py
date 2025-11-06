@@ -134,6 +134,54 @@ def get_permutation_dict(ells_dict: dict[int, list[int]],
 
     return pd
 
+def make_hmatrix(numbers: np.ndarray, 
+                 offblocks: list[np.ndarray], 
+                 onblocks: list[np.ndarray], 
+                 species_basis_size_dict: dict[int, int]):
+    """
+    Combine the sparse Hamilotonian blocks to make the Hamiltonian matrix.
+    Makes the resulting Hamiltonian Hermitian before it is returned.
+    Taken from gears_h.infer.infer: 
+    https://github.com/SamsungDS/gears_h/blob/main/gears_h/infer/infer.py#L202
+
+    Args:
+        numbers (np.ndarray): Atomic numbers of the inference system.
+        offblocks (list[np.ndarray]): List of the off-diagonal Hamiltonian blocks.
+        onblocks (list[np.ndarray]): List of the on-diagonal Hamiltonian blocks.
+        species_basis_size_dict (dict[int, int]): Dictionary in which the keys are atomic numbers and values 
+            are the number of basis functions for each atomic species.
+
+    Returns:
+        np.ndarray: The Hamiltonian matrix.
+    """
+    spd = species_basis_size_dict
+
+    idxs = np.array([0] + [spd[i] for i in numbers], dtype=np.int32)
+    idxs = np.cumsum(idxs)
+
+    hmatrix = [[None] * len(numbers) for _ in range(len(numbers))]
+
+    for onblock_stack in onblocks:
+        for onblock, idx in zip(*onblock_stack):
+            hmatrix[idx][idx] = onblock
+
+    for offblock_stack in offblocks:
+        for offblock, pair_idx in zip(*offblock_stack):
+            i, j = pair_idx
+            # TODO: replace this loop and these conditionals with a groupby and reduce
+            if hmatrix[i][j] is None:
+                hmatrix[i][j] = offblock
+            else:
+                hmatrix[i][j] += offblock
+
+    blocks = np.asarray(hmatrix, dtype='object')
+    if blocks.ndim == 2:
+        hmatrix = block_array(hmatrix)
+        return (0.5 * (hmatrix + hmatrix.T.conj())).toarray()
+    elif blocks.ndim == 4:
+        hmatrix = np.block(hmatrix)
+        return 0.5 * (hmatrix + hmatrix.T.conj())
+
 class VectorPermuter:
     def __init__(self, from_array, to_array):
         assert len(from_array) == len(
