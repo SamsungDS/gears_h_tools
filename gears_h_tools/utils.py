@@ -165,6 +165,23 @@ def make_hamiltonian_blockedmatrix(
     )
     return H_MM_blocked
 
+def get_permutation_dict(ells_dict: dict[int, list[int]],
+                         ellwise_permutation_dict: dict[int, list[int]]):
+    
+    pd = {}
+    # for each orbital angular momentum in the basis function for the atom,
+    # add the ell-wise permutation indices, with an offset for the lower
+    # angular momenta.
+    for z, ells in ells_dict.items():
+        idx = []
+        for ell in ells:
+            offset = np.max(np.concatenate(idx))+1 if len(idx) > 0 else 0
+            idx.append(ellwise_permutation_dict[ell] + offset)
+    
+        idx = np.concatenate(idx)
+        pd[z] = idx
+
+    return pd
 
 class VectorPermuter:
     def __init__(self, from_array, to_array):
