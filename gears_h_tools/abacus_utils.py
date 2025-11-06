@@ -108,3 +108,22 @@ def get_abacus_ells_dict(logfile_path: Path | str) -> dict[int, list[int]]:
                 ells_dict[atomic_numbers[atomic_species]].append(ell)
     
     return ells_dict
+
+def get_abacus_ellwise_permutation_dict() -> dict[int, list[int]]:
+    """Get sort indices for permuting the abacus m ordering (defined below) to the 
+    non-Cartesian ordering required by gears_h. We use the second convention
+    discussed here: https://e3x.readthedocs.io/stable/pitfalls.html#ordering-of-irreps
+    Abacus's m order is discussed here:
+    https://abacus.deepmodeling.com/en/latest/advanced/pp_orb.html#basis-set
+
+    Returns:
+        dict[int, list[int]]: A dictionary with ell for the keys and the sort indices
+                              to permute from the Abacus ordering to the ordering used
+                              in gears_h. Defined up to ell = 4, but can be trivially
+                              extended if needed.
+    """
+    abacus_ordering = [0, 1, -1, 2, -2, 3, -3, 4, -4]
+    abacus_ordering_per_ell = [abacus_ordering[:n] for n in [2*l + 1 for l in range(5)]]
+    ellwise_permutation_dict = {ell: np.argsort(a) for ell, a in enumerate(abacus_ordering_per_ell)}
+    
+    return ellwise_permutation_dict
