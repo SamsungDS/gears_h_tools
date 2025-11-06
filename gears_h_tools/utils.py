@@ -117,7 +117,7 @@ def make_hamiltonian_blockedmatrix(
     return H_MM_blocked
 
 def get_permutation_dict(ells_dict: dict[int, list[int]],
-                         ellwise_permutation_dict: dict[int, list[int]]):
+                         ellwise_permutation_dict: dict[int, np.ndarray]):
     
     pd = {}
     # for each orbital angular momentum in the basis function for the atom,
@@ -181,6 +181,75 @@ def make_hmatrix(numbers: np.ndarray,
     elif blocks.ndim == 4:
         hmatrix = np.block(hmatrix)
         return 0.5 * (hmatrix + hmatrix.T.conj())
+
+def blocked_matrix_to_hmatrix(blocked_hamiltonian: BlockedMatrix,
+                              atoms: ase.Atoms,
+                              species_basis_size_dict: dict[int, int],
+                              ij: np.ndarray) -> np.ndarray:
+    """This is only useful when shuffling the read in matrix is required.
+    Shuffling is automatically handled by BlockedMatrix, but we need to
+    reassemble the shuffled H matrix to write it out.
+
+    Args:
+        blocked_hamiltonian (BlockedMatrix): Blocked Hamiltonian matrix.
+        atoms (ase.Atoms): Atomic structure
+        species_basis_size_dict (dict[int, int]): keys are atomic species, values are number of basis functions.
+        ij (np.ndarray): Neighbor list.
+
+    Returns:
+        np.ndarray: The reassembled Hamiltonian matrix.
+    """
+    # Arrange off-diagonal blocks into a list of tuples.
+    # Each tuple contains a list of off-diagonal blocks and the ij of those blocks.
+
+    atomic_number_pairs = atoms.numbers[ij]
+    assert atomic_number_pairs.shape[-1] == 2
+    # unique species pairs
+    unique_elementpairs = np.unique(atomic_number_pairs, axis=0)
+
+    pair_hblocks_list = []
+    for pair in unique_elementpairs:
+        # indices of all pairs with this unique combination of atoms
+        boolean_indices_of_pairs = np.all(atomic_number_pairs == pair, axis=1)
+        # pre-allocate blocks in shape (n_pairs, n_bf_1, n_bf_2)
+        hblocks_of_pair = np.zeros((sum(boolean_indices_of_pairs), 
+                                    *[species_basis_size_dict[s] for s in pair])).astype(np.float32)
+        # for each pair of neighbors
+        for i, tij in enumerate(ij[boolean_indices_of_pairs]):
+            # get the hblock of that pair of neighbors, shuffle, and store in our array
+            hblocks_of_pair[i] = blocked_hamiltonian.get_block(*tij)
+
+        pair_hblocks_list.append((hblocks_of_pair, ij[boolean_indices_of_pairs]))
+
+    # Arrange on-diagonal blocks into a list of tuples.
+    # Each tuple contains the on-diagonal blocks for a species and the index of
+    # H where the block belongs.
+    
+    # get atom indices
+    atom_indices = np.arange(len(atoms.numbers))
+
+    species_hblocks_list = []
+    # for each species
+    for an in np.unique(atoms.numbers):
+        # get indices of atoms that match the current species
+        boolean_indices_of_species = (an == atoms.numbers)
+        # Allocate numpy array of the correct size, (nblocks, block size, block size)
+        species_hblocks = np.zeros((sum(boolean_indices_of_species), 
+                                    species_basis_size_dict[an], 
+                                    species_basis_size_dict[an])).astype(np.float32)
+        for i, ai in enumerate(atom_indices[boolean_indices_of_species]):
+            species_hblocks[i] = blocked_hamiltonian.get_block(ai,ai)
+        
+        species_hblocks = np.array(species_hblocks)#.astype(np.float32) # no array problems here since species-wise on-diags always have the same size
+        # append species-wise blocks and the corresponding atom indices to our return list
+        species_hblocks_list.append((species_hblocks, atom_indices[boolean_indices_of_species]))
+
+    # Assemble H
+    hmatrix = make_hmatrix(atoms.numbers,
+                           offblocks=pair_hblocks_list,
+                           onblocks=species_hblocks_list,
+                           species_basis_size_dict=species_basis_size_dict)
+    return hmatrix
 
 class VectorPermuter:
     def __init__(self, from_array, to_array):
