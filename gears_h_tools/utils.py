@@ -1,5 +1,3 @@
-from typing import List, Union
-
 import ase
 import numpy as np
 from matscipy.neighbours import neighbour_list
@@ -250,6 +248,16 @@ def blocked_matrix_to_hmatrix(blocked_hamiltonian: BlockedMatrix,
                            onblocks=species_hblocks_list,
                            species_basis_size_dict=species_basis_size_dict)
     return hmatrix
+
+def group_ijD_by_S(ij: np.ndarray,
+                   D: np.ndarray,
+                   all_S: np.ndarray,
+                   target_S: np.ndarray
+                  ) -> dict[tuple[int], dict[str, np.ndarray]]:
+    indices = {tuple(s) : np.nonzero(np.all(s == all_S, axis=1)) for s in target_S}
+    grouped_ijD = {k : {'ij' : ij[v], 'D' : D[v]} for k, v in indices.items()}
+    
+    return grouped_ijD
 
 class VectorPermuter:
     def __init__(self, from_array, to_array):
