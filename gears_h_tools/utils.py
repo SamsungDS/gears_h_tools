@@ -1,6 +1,7 @@
 import ase
 import numpy as np
 from matscipy.neighbours import neighbour_list
+from scipy.sparse import block_array
 
 
 def get_neighbourlist_ijD(
