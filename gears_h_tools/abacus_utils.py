@@ -107,7 +107,7 @@ def get_abacus_ells_dict(logfile_path: Path | str) -> dict[int, list[int]]:
     
     return ells_dict
 
-def get_abacus_ellwise_permutation_dict() -> dict[int, list[int]]:
+def get_abacus_ellwise_permutation_dict() -> dict[int, np.ndarray]:
     """Get sort indices for permuting the abacus m ordering (defined below) to the 
     non-Cartesian ordering required by gears_h. We use the second convention
     discussed here: https://e3x.readthedocs.io/stable/pitfalls.html#ordering-of-irreps
