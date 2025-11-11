@@ -86,7 +86,8 @@ class BlockedMatrix:
         
         if self.permute:
             block = self.permute_rowcols(self.matrix[istart:istop, jstart:jstop],
-                                         self.pd[i], self.pd[j])
+                                         self.pd[self.block_ids[i]],
+                                         self.pd[self.block_ids[j]])
         else:
             block = self.matrix[istart:istop, jstart:jstop]
         
