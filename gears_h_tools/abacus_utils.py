@@ -41,14 +41,16 @@ def read_H_csrs_and_shifts(csr_path: Path,
     
     return csr_mats, shift_vectors
 
-def read_S_csrs(csr_path: Path,
+def read_S_csr(csr_path: Path,
                shift_vectors: list[np.ndarray]):
     with open(csr_path, "r") as f:
         lines = f.readlines()
 
     # Matrix dimension and number of matrices
     dim = int(lines[1].split()[-1])
-    csr_mats = []
+    # nhmat = int(lines[2].split()[-1])
+    # Initialize an empty CSR to sum all the matrices into
+    csr_mat = csr_matrix((dim,dim), dtype=float)
 
     nlines = len(lines)
     # Loop over lines to extract CSRs for each shift vector.
@@ -68,12 +70,12 @@ def read_S_csrs(csr_path: Path,
                 col_indices = np.fromstring(lines[i+2], sep = ' ', dtype=int)
                 indptr = np.fromstring(lines[i+3], sep = ' ', dtype=int)
                 tcsr = csr_matrix((data, col_indices, indptr), shape=(dim,dim))
-                csr_mats.append(tcsr)
+                csr_mat += tcsr
                 i += 4
         elif nnz == 0:
             i += 1
     
-    return csr_mats
+    return csr_mat
 
 def get_abacus_ells_dict(logfile_path: Path | str) -> dict[int, list[int]]:
     """Returns a dictionary of the angular momenta of the basis
