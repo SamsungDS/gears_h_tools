@@ -41,8 +41,7 @@ def read_H_csrs_and_shifts(csr_path: Path,
     
     return csr_mats, shift_vectors
 
-def read_S_csr(csr_path: Path,
-               shift_vectors: list[np.ndarray]):
+def read_S_csr(csr_path: Path):
     with open(csr_path, "r") as f:
         lines = f.readlines()
 
@@ -61,17 +60,12 @@ def read_S_csr(csr_path: Path,
         svec_nnz = np.fromstring(lines[i], sep = ' ', dtype=int)
         svec, nnz = svec_nnz[:-1], svec_nnz[-1]
         if nnz > 0:
-            # Don't include S matrices that we do not have Hamiltonians for.
-            if not np.any(np.all(svec == shift_vectors, axis=1)):
-                i += 4
-                continue
-            else:
-                data = np.fromstring(lines[i+1], sep = ' ', dtype=float)
-                col_indices = np.fromstring(lines[i+2], sep = ' ', dtype=int)
-                indptr = np.fromstring(lines[i+3], sep = ' ', dtype=int)
-                tcsr = csr_matrix((data, col_indices, indptr), shape=(dim,dim))
-                csr_mat += tcsr
-                i += 4
+            data = np.fromstring(lines[i+1], sep = ' ', dtype=float)
+            col_indices = np.fromstring(lines[i+2], sep = ' ', dtype=int)
+            indptr = np.fromstring(lines[i+3], sep = ' ', dtype=int)
+            tcsr = csr_matrix((data, col_indices, indptr), shape=(dim,dim))
+            csr_mat += tcsr
+            i += 4
         elif nnz == 0:
             i += 1
     
