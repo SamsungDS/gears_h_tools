@@ -5,13 +5,23 @@ from typing import Union
 import ase
 import numpy as np
 from ase.data import atomic_numbers
-from ase.io import read
+from ase.io import read, write
 from ase.units import Ha
 
 from gears_h_tools.utils import (
-    BlockedMatrix,
+    blocked_matrix_to_hmatrix,
     get_neighbourlist_ijD,
+    get_neighbourlist_ijDS,
+    get_permutation_dict,
+    group_ijD_by_S,
     make_hamiltonian_blockedmatrix,
+)
+
+from gears_h_tools.abacus_utils import (
+    read_H_csrs_and_shifts, 
+    read_S_csr,
+    get_abacus_ells_dict,
+    get_abacus_ellwise_permutation_dict
 )
 
 
@@ -101,6 +111,133 @@ def prepare_gpaw_slh_snapshot(
 
     with open(directory / "orbital_ells.json", mode="w") as fd:
         json.dump(ls_dict, fd)
+
+def prepare_abacus_gears_h_snapshot(abacus_out_dir: Path,
+                                    write_dir: Path,
+                                    cutoff: float,
+                                    threshold: float = 1e-4
+                                   ):
+    # read in atoms, H matrices and shift vectors, and the S matrix.
+    try:
+        atoms = read(abacus_out_dir / "STRU.cif")
+        csr_hs, svecs = read_H_csrs_and_shifts(abacus_out_dir / "hrs1_nao.csr",
+                                               threshold = threshold)
+        csr_s = read_S_csr(abacus_out_dir / "srs1_nao.csr",
+                           shift_vectors = svecs)
+        # extract basis set angular momenta per atom
+        ells_dict = get_abacus_ells_dict(logfile_path = abacus_out_dir / "running_scf.log")
+    except Exception as e:
+        print(f"Failed to read in {abacus_out_dir}")
+        raise e
+    # number of basis functions per species
+    species_basis_size_dict = {k: np.sum([2*ell+1 for ell in v]) for k,v in ells_dict.items()}
+    # get neighborlist and distances
+    ij, D, S = get_neighbourlist_ijDS(atoms = atoms,
+                                      cutoff=cutoff)
+    grouped_ijD = group_ijD_by_S(ij, D, S, svecs)
+    block_sizes = np.array([sum(2 * np.array(ells_dict[n]) + 1) for n in atoms.numbers])
+
+    perm_dict = get_permutation_dict(ells_dict=ells_dict,
+                                     ellwise_permutation_dict=get_abacus_ellwise_permutation_dict())
+
+    final_ijs = []
+    final_Ds = []
+    off_diag_blocks = []
+    svec_num_blocks = []
+    from scipy.sparse import csr_matrix
+    gamma_H = csr_matrix(csr_hs[0].shape, dtype=float)
+    # For every CSR H and shift vector pair:
+    for csrH, shift in zip(csr_hs, svecs, strict=True):
+        # Get the neighbor list and displacement vectors
+        tij = grouped_ijD[tuple(shift)]['ij']
+        tD = grouped_ijD[tuple(shift)]['D']
+        # Densify H
+        raw_h = np.array(csrH.todense())
+        # Block the raw H.
+        bh = make_hamiltonian_blockedmatrix(H_MM = raw_h, 
+                                            atoms = atoms,
+                                            basis_block_sizes = block_sizes,
+                                            permutation_dict = perm_dict)
+        # Build a new H matrix from the raw blocked H. 
+        # This handles the permutation thanks to BlockedMatrix.
+        h = blocked_matrix_to_hmatrix(bh, 
+                                      atoms,
+                                      species_basis_size_dict,
+                                      tij)
+        gamma_H += csr_matrix(h)
+        
+        
+        # Get the off-diagonal blocks, but filter first.
+        tij, tD, permuted_off_diag_blocks = filter_pairs_by_hblock_magnitude(
+                                                ij = tij,
+                                                D = tD,
+                                                blocked_hamiltonian = bh,
+                                                threshold = threshold,
+                                            )
+        if len(tij) == 0:
+            continue
+        svec_num_blocks.append(np.concat([shift, [len(tij)]]))
+        
+        # I loathe these next couple of lines but it's the only way to
+        # stop numpy from stacking arrays.......
+        permuted_off_diag_blocks_array = np.empty(tij.shape[0], dtype=object)
+        for i, b in enumerate(permuted_off_diag_blocks):
+            permuted_off_diag_blocks_array[i] = b
+
+        final_ijs.append(tij)
+        final_Ds.append(tD)
+        off_diag_blocks.append(permuted_off_diag_blocks_array)
+
+        # on-diagonal blocks
+        # only get these for S = (0, 0, 0)
+        if np.all(shift == np.zeros(3, dtype=int)):
+            permuted_ii_list = [bh.get_block(i,i) for i in range(atoms.get_global_number_of_atoms())]
+            on_diag_blocks = np.array(permuted_ii_list, dtype=object)
+
+    # combine off-diagonal neighbor indicies, displacements, and blocks
+    final_ijs = np.vstack(final_ijs)
+    final_Ds = np.vstack(final_Ds)
+    final_off_diag_blocks = np.concatenate(off_diag_blocks, dtype=object)
+
+    # make blocked S
+    raw_s = np.array(csr_s.todense())
+    raw_bs = make_hamiltonian_blockedmatrix(H_MM = raw_s, 
+                                            atoms = atoms,
+                                            basis_block_sizes = block_sizes,
+                                            permutation_dict = perm_dict)
+    # get permuted S using the unfiltered neighbor list
+    gamma_S = blocked_matrix_to_hmatrix(raw_bs,
+                                        atoms,
+                                        species_basis_size_dict,
+                                        ij)
+    gamma_S = csr_matrix(S)
+    
+    # write training data
+    if not write_dir.exists():
+        write_dir.mkdir(parents = True)
+    write(write_dir / "atoms.extxyz", atoms)
+    np.savez(write_dir / "hblocks_on-diagonal.npz",
+             hblocks=on_diag_blocks,
+             allow_pickle=True)
+    np.savez(write_dir / "ijD.npz",
+             ij=final_ijs,
+             D=final_Ds)
+    np.savetxt(write_dir / "svecs_num_blocks.dat",
+               svec_num_blocks,
+               fmt="%d")
+    np.savez(write_dir / "hblocks_off-diagonal.npz",
+             hblocks=final_off_diag_blocks,
+             allow_pickle=True)
+    np.savez(
+        write_dir / "H_MM_S_MM.npz",
+        **{
+            "H_MM": gamma_H,
+            "S_MM": gamma_S,
+        },
+    )
+
+    with open(write_dir / "orbital_ells.json", mode="w") as fd:
+        json.dump(ells_dict, fd)
 
 
 def write_only_atoms(directory, atoms):
