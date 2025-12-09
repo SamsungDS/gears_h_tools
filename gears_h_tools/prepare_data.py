@@ -209,7 +209,7 @@ def prepare_abacus_gears_h_snapshot(abacus_out_dir: Path,
     gamma_S = blocked_matrix_to_hmatrix(raw_bs,
                                         atoms,
                                         species_basis_size_dict,
-                                        ij)
+                                        grouped_ijD[(0,0,0)]['ij'])
     gamma_S = csr_matrix(S)
     
     # write training data
