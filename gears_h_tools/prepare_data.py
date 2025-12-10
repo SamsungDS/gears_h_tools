@@ -29,7 +29,7 @@ from gears_h_tools.gpaw_utils import (
 
 
 # TODO this function does a bit more than it needs to.
-def prepare_gpaw_slh_snapshot(
+def prepare_gpaw_gears_h_snapshot(
     directory,
     *,
     gpwfilename: str,
