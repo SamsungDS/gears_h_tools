@@ -205,6 +205,8 @@ def prepare_abacus_gears_h_snapshot(abacus_out_dir: Path,
                                             basis_block_sizes = block_sizes,
                                             permutation_dict = perm_dict)
     # get permuted S using the unfiltered neighbor list
+    # since we're folding in all the shifted cells, when we reassemble
+    # the permuted S, we only need the neighbors in the origin cell.
     gamma_S = blocked_matrix_to_hmatrix(raw_bs,
                                         atoms,
                                         species_basis_size_dict,
