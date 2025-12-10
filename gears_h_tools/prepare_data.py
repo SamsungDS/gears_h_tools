@@ -122,8 +122,7 @@ def prepare_abacus_gears_h_snapshot(abacus_out_dir: Path,
         atoms = read(abacus_out_dir / "STRU.cif")
         csr_hs, svecs = read_H_csrs_and_shifts(abacus_out_dir / "hrs1_nao.csr",
                                                threshold = threshold)
-        csr_s = read_S_csr(abacus_out_dir / "srs1_nao.csr",
-                           shift_vectors = svecs)
+        csr_s = read_S_csr(abacus_out_dir / "srs1_nao.csr")
         # extract basis set angular momenta per atom
         ells_dict = get_abacus_ells_dict(logfile_path = abacus_out_dir / "running_scf.log")
     except Exception as e:
