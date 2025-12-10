@@ -8,11 +8,13 @@ from ase.io import read, write
 
 from gears_h_tools.utils import (
     blocked_matrix_to_hmatrix,
+    filter_pairs_by_hblock_magnitude,
     get_neighbourlist_ijD,
     get_neighbourlist_ijDS,
     get_permutation_dict,
     group_ijD_by_S,
     make_hamiltonian_blockedmatrix,
+    write_only_atoms
 )
 
 from gears_h_tools.abacus_utils import (
@@ -242,38 +244,3 @@ def prepare_abacus_gears_h_snapshot(abacus_out_dir: Path,
 
     with open(write_dir / "orbital_ells.json", mode="w") as fd:
         json.dump(ells_dict, fd)
-
-
-def write_only_atoms(directory, atoms):
-    from ase.io import write
-
-    with open(directory / "atoms.extxyz", mode="w") as fd:
-        write(fd, atoms)
-
-def filter_pairs_by_hblock_magnitude(
-    ij, D, blocked_hamiltonian,threshold
-):
-    
-    filtered_ij_list = []
-    filtered_D_list = []
-    matrix_blocks_list = []
-    for _ij, _D in zip(ij, D, strict=True):
-        i, j = _ij
-
-        matrix_block = blocked_hamiltonian.get_block(i, j)
-        # A max abs is the infinity-norm
-        if np.max(np.abs(matrix_block)) >= threshold:
-            filtered_ij_list.append(_ij)
-            filtered_D_list.append(_D)
-            matrix_blocks_list.append(matrix_block)
-
-    return np.array(filtered_ij_list), np.array(filtered_D_list), matrix_blocks_list
-    # TODO Need to generate diagonal blocks
-    # for ii in np.unique(ij[:, 0]):
-    #     # if ii == 1:
-    #     #     np.savetxt("dump.txt", blocked_hamiltonian.get_block(ii, ii).ravel())
-    #     # Self-overlap terms will always have a lattice shift of 0, 0, 0
-    #     tmp = [0, 0, 0, int(ii + 1), int(ii + 1)]
-    #     h5handle.create_dataset(
-    #         json.dumps(tmp), data=blocked_hamiltonian.get_block(ii, ii)
-    #     )
