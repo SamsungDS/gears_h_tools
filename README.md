@@ -7,10 +7,7 @@ Currently, the main functionality is to convert `gpaw` LCAO calculation outputs 
 ## Installation
 
 `gears_h_tools` requires `gpaw` to function.
-As discussed in [the next section](#speeding-up-conversion), `gpaw>=25.7.0` is recommended.
-
-> **WARNING**: there is currently a bug in the released version of `gpaw` 25.7.0 that breaks the extraction of LCAO Hamiltonians.
-> A bug fix is pending (see [here](https://gitlab.com/gpaw/gpaw/-/merge_requests/2836) for details), but until it has been merged and a new release containing it is available, you will either need to manually add the fix yourself or use an older version of `gpaw`. If you choose the latter approach, simply change the version number below.
+We require `gpaw>=25.7.0`. This [speeds up the conversion](#speeding-up-conversion), and is the version compatible with the provided interface (as over `v0.10.0`).
 
 The easiest way to install `gpaw` such that it has `scalapack` and `elpa` to accelerate calculations is with `spack`.
 First, follow spack's installation instructions [here](https://github.com/spack/spack?tab=readme-ov-file#installation).
@@ -38,7 +35,7 @@ Whenever you need to use `gears_h_tools`, simply set up your `spack` environment
 
 ## Speeding up conversion
 
-We recommend using `gpaw>=25.7.0` for converting your output files to `gears_h` training data because it includes [this commit](https://gitlab.com/gpaw/gpaw/-/merge_requests/2817), which greatly accelerates the process.
+We require using `gpaw>=25.7.0` for converting your output files to `gears_h` training data because it includes [this commit](https://gitlab.com/gpaw/gpaw/-/merge_requests/2817), which greatly accelerates the process.
 If you are on an older version of `gpaw` for whatever reason, you can backport this commit to your installation.
 
 ## Examples

@@ -1,20 +1,18 @@
 import json
 from pathlib import Path
-from typing import Union
 
-import ase
 import numpy as np
-from ase.data import atomic_numbers
 from ase.io import read, write
-from ase.units import Ha
 
 from gears_h_tools.utils import (
     blocked_matrix_to_hmatrix,
+    filter_pairs_by_hblock_magnitude,
     get_neighbourlist_ijD,
     get_neighbourlist_ijDS,
     get_permutation_dict,
     group_ijD_by_S,
     make_hamiltonian_blockedmatrix,
+    write_only_atoms
 )
 
 from gears_h_tools.abacus_utils import (
@@ -24,9 +22,14 @@ from gears_h_tools.abacus_utils import (
     get_abacus_ellwise_permutation_dict
 )
 
+from gears_h_tools.gpaw_utils import (
+    get_overlap_and_basis_information,
+    get_hamiltonian_and_basis_information_from_gpw
+)
+
 
 # TODO this function does a bit more than it needs to.
-def prepare_gpaw_slh_snapshot(
+def prepare_gpaw_gears_h_snapshot(
     directory,
     *,
     gpwfilename: str,
@@ -239,101 +242,3 @@ def prepare_abacus_gears_h_snapshot(abacus_out_dir: Path,
 
     with open(write_dir / "orbital_ells.json", mode="w") as fd:
         json.dump(ells_dict, fd)
-
-
-def write_only_atoms(directory, atoms):
-    from ase.io import write
-
-    with open(directory / "atoms.extxyz", mode="w") as fd:
-        write(fd, atoms)
-
-
-def get_basis_indices_from_calculation(calculation):
-    """Given a GPAW DFTCalculation object, calculates a dict of ell and ordered lm indices
-    for each elemental block in an LCAO hamiltonian.
-
-    Parameters
-    ----------
-    calculation : DFTCalculation
-        _description_
-
-    Returns
-    -------
-    _type_
-        _description_
-    """
-    setups = calculation.setups
-    ls_dict = {}
-
-    # The setups contain basis information about the calculation
-    for setup in setups:
-        ells = [x.l for x in setup.basis.bf_j]
-        ls_dict[atomic_numbers[setup.basis.symbol]] = ells
-
-    return ls_dict
-
-
-def get_overlap_and_basis_information(atoms, parameters):
-    from gpaw.new.calculation import DFTCalculation
-
-    calculation = DFTCalculation.from_parameters(atoms, parameters)
-    ls_dict = get_basis_indices_from_calculation(calculation)
-    # TODO: Would be nice to be able to get the k-space S_MM and then FT back
-    S_MM = calculation.state.ibzwfs.wfs_qs[0][0].S_MM
-    S_MM.gather()
-
-    return S_MM.data, ls_dict
-
-
-def get_hamiltonian_and_basis_information_from_gpw(gpwfilename: str):
-    from gpaw.new.ase_interface import GPAW
-
-    # We set scalapack here even one a single core since that enables
-    # sparse atomic corrections.
-    calculation = GPAW(gpwfilename, parallel={"sl_auto": True})._dft
-    ls_dict = get_basis_indices_from_calculation(calculation)
-    matcalc = calculation.scf_loop.hamiltonian.create_hamiltonian_matrix_calculator(
-        calculation.state
-    )
-
-    # TODO This is spin-paired and gamma point for the moment.
-    H_MM = matcalc.calculate_matrix(calculation.state.ibzwfs.wfs_qs[0][0])
-    H_MM.gather()
-    S_MM = calculation.state.ibzwfs.wfs_qs[0][0].S_MM
-    S_MM.gather()
-
-    return (
-        H_MM.data * Ha,
-        S_MM.data,
-        ls_dict,
-        # calculation.state.ibzwfs.fermi_levels * Ha,
-    )
-
-
-def filter_pairs_by_hblock_magnitude(
-    ij, D, blocked_hamiltonian,threshold
-):
-    
-    filtered_ij_list = []
-    filtered_D_list = []
-    matrix_blocks_list = []
-    for _ij, _D in zip(ij, D, strict=True):
-        i, j = _ij
-
-        matrix_block = blocked_hamiltonian.get_block(i, j)
-        # A max abs is the infinity-norm
-        if np.max(np.abs(matrix_block)) >= threshold:
-            filtered_ij_list.append(_ij)
-            filtered_D_list.append(_D)
-            matrix_blocks_list.append(matrix_block)
-
-    return np.array(filtered_ij_list), np.array(filtered_D_list), matrix_blocks_list
-    # TODO Need to generate diagonal blocks
-    # for ii in np.unique(ij[:, 0]):
-    #     # if ii == 1:
-    #     #     np.savetxt("dump.txt", blocked_hamiltonian.get_block(ii, ii).ravel())
-    #     # Self-overlap terms will always have a lattice shift of 0, 0, 0
-    #     tmp = [0, 0, 0, int(ii + 1), int(ii + 1)]
-    #     h5handle.create_dataset(
-    #         json.dumps(tmp), data=blocked_hamiltonian.get_block(ii, ii)
-    #     )

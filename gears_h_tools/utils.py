@@ -261,6 +261,31 @@ def group_ijD_by_S(ij: np.ndarray,
     
     return grouped_ijD
 
+def filter_pairs_by_hblock_magnitude(
+    ij, D, blocked_hamiltonian,threshold
+):
+    
+    filtered_ij_list = []
+    filtered_D_list = []
+    matrix_blocks_list = []
+    for _ij, _D in zip(ij, D, strict=True):
+        i, j = _ij
+
+        matrix_block = blocked_hamiltonian.get_block(i, j)
+        # A max abs is the infinity-norm
+        if np.max(np.abs(matrix_block)) >= threshold:
+            filtered_ij_list.append(_ij)
+            filtered_D_list.append(_D)
+            matrix_blocks_list.append(matrix_block)
+
+    return np.array(filtered_ij_list), np.array(filtered_D_list), matrix_blocks_list
+
+def write_only_atoms(directory, atoms):
+    from ase.io import write
+
+    with open(directory / "atoms.extxyz", mode="w") as fd:
+        write(fd, atoms)
+
 class VectorPermuter:
     def __init__(self, from_array, to_array):
         assert len(from_array) == len(

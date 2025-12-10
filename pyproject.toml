@@ -1,6 +1,6 @@
 [project]
 name = "gears_h_tools"
-version = "0.1.0"
+version = "0.10.0"
 description = ""
 authors = [
     {name = "Anubhab Haldar", email = "a.haldar@samsung.com"},
