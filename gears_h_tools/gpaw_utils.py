@@ -32,7 +32,7 @@ def get_overlap_and_basis_information(atoms, parameters):
     calculation = DFTCalculation.from_parameters(atoms, parameters)
     ls_dict = get_basis_indices_from_calculation(calculation)
     # TODO: Would be nice to be able to get the k-space S_MM and then FT back
-    S_MM = calculation.state.ibzwfs.wfs_qs[0][0].S_MM
+    S_MM = calculation.ibzwfs.wfs_qs[0][0].S_MM
     S_MM.gather()
 
     return S_MM.data, ls_dict
@@ -46,13 +46,13 @@ def get_hamiltonian_and_basis_information_from_gpw(gpwfilename: str):
     calculation = GPAW(gpwfilename, parallel={"sl_auto": True})._dft
     ls_dict = get_basis_indices_from_calculation(calculation)
     matcalc = calculation.scf_loop.hamiltonian.create_hamiltonian_matrix_calculator(
-        calculation.state
+        calculation.potential
     )
 
     # TODO This is spin-paired and gamma point for the moment.
-    H_MM = matcalc.calculate_matrix(calculation.state.ibzwfs.wfs_qs[0][0])
+    H_MM = matcalc.calculate_matrix(calculation.ibzwfs.wfs_qs[0][0])
     H_MM.gather()
-    S_MM = calculation.state.ibzwfs.wfs_qs[0][0].S_MM
+    S_MM = calculation.ibzwfs.wfs_qs[0][0].S_MM
     S_MM.gather()
 
     return (
