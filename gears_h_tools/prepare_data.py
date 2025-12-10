@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
-from typing import Union
 
-import ase
 import numpy as np
 from ase.io import read, write
 
