@@ -1,8 +1,7 @@
-from typing import List, Union
-
 import ase
 import numpy as np
 from matscipy.neighbours import neighbour_list
+from scipy.sparse import block_array
 
 
 def get_neighbourlist_ijD(
@@ -32,59 +31,22 @@ def get_neighbourlist_ijD(
 
     return ij, D
 
+def get_neighbourlist_ijDS(atoms: ase.Atoms, 
+                           cutoff: float):
+    """Returns a tuple of an array of atom-pair indices, an array of vectors 
+    for that pair, and an array of shift vectors.
 
-class BlockedHamiltonian:
-    def __init__(
-        self,
-        atoms: ase.Atoms,
-        nbasis_species_dict: dict,
-        hamiltonian,
-        orbitals_permutation_dict=None,
-    ):
-        """_summary_
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        ASE Atoms object for which to compute the neighborlist.
+    cutoff : float
+        Maximum distance to search for neighbors
+    """
+    i, j, D, S = neighbour_list("ijDS", atoms=atoms, cutoff=cutoff)
+    ij = np.column_stack([i, j]).astype(int)
 
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            _description_
-        nbasis_species_dict : dict
-            Number of basis functions for each element in the hamiltonian
-        hamiltonian : np.ndarray
-            2D array, the hamiltonian matrix
-        orbitals_permutation_dict : dict
-            Orbital permutation vector for each element's basis functions.
-        """
-        self.atoms = atoms
-        self.nbasis_species_dict = nbasis_species_dict
-        self.basis_starts = (
-            np.cumsum([nbasis_species_dict[s] for s in atoms.symbols])
-            - nbasis_species_dict[atoms[0].symbol]
-        )
-        self.hamiltonian = hamiltonian
-        self.opd = orbitals_permutation_dict
-        self.permute = False if self.opd is None else True
-
-    def get_block(self, i, j):
-        atoms_i_symbol = self.atoms[i].symbol
-        atoms_j_symbol = self.atoms[j].symbol
-        istart = self.basis_starts[i]
-        istop = istart + self.nbasis_species_dict[atoms_i_symbol]
-        jstart = self.basis_starts[j]
-        jstop = jstart + self.nbasis_species_dict[atoms_j_symbol]
-        try:
-            hblock = (
-                self.permute_rowcols(
-                    self.hamiltonian[istart:istop, jstart:jstop],
-                    self.opd[atoms_i_symbol],
-                    self.opd[atoms_j_symbol],
-                )
-                if self.permute
-                else self.hamiltonian[istart:istop, jstart:jstop]
-            )
-            return hblock
-        except KeyError:
-            print(list(self.opd.keys()))
-
+    return ij, D, S
 
 class BlockedMatrix:
     def __init__(
@@ -114,17 +76,22 @@ class BlockedMatrix:
         self.block_sizes = block_sizes
         self.block_starts = np.concatenate([[0], np.cumsum(block_sizes[:-1])])
         self.pd = permutation_dict
-
+        self.permute = False if self.pd is None else True
+    
     def get_block(self, i, j):
         istart = self.block_starts[i]
         istop = istart + self.block_sizes[i]
         jstart = self.block_starts[j]
         jstop = jstart + self.block_sizes[j]
-        try:
+        
+        if self.permute:
+            block = self.permute_rowcols(self.matrix[istart:istop, jstart:jstop],
+                                         self.pd[self.block_ids[i]],
+                                         self.pd[self.block_ids[j]])
+        else:
             block = self.matrix[istart:istop, jstart:jstop]
-            return block
-        except Exception as e:
-            raise e
+        
+        return block
 
     def permute_rowcols(self, block, prows, pcols):
         # This particular part of the code doesn't need to be performant
@@ -142,13 +109,157 @@ class BlockedMatrix:
 
 
 def make_hamiltonian_blockedmatrix(
-    H_MM, atoms, basis_block_sizes
+    H_MM, atoms, basis_block_sizes, permutation_dict=None
 ):
     H_MM_blocked = BlockedMatrix(
-        H_MM, atoms.numbers, basis_block_sizes
+        H_MM, atoms.numbers, basis_block_sizes, permutation_dict
     )
     return H_MM_blocked
 
+def get_permutation_dict(ells_dict: dict[int, list[int]],
+                         ellwise_permutation_dict: dict[int, np.ndarray]):
+    
+    pd = {}
+    # for each orbital angular momentum in the basis function for the atom,
+    # add the ell-wise permutation indices, with an offset for the lower
+    # angular momenta.
+    for z, ells in ells_dict.items():
+        idx = []
+        for ell in ells:
+            offset = np.max(np.concatenate(idx))+1 if len(idx) > 0 else 0
+            idx.append(ellwise_permutation_dict[ell] + offset)
+    
+        idx = np.concatenate(idx)
+        pd[z] = idx
+
+    return pd
+
+def make_hmatrix(numbers: np.ndarray, 
+                 offblocks: list[np.ndarray], 
+                 onblocks: list[np.ndarray], 
+                 species_basis_size_dict: dict[int, int]):
+    """
+    Combine the sparse Hamilotonian blocks to make the Hamiltonian matrix.
+    Makes the resulting Hamiltonian Hermitian before it is returned.
+    Taken from gears_h.infer.infer: 
+    https://github.com/SamsungDS/gears_h/blob/main/gears_h/infer/infer.py#L202
+
+    Args:
+        numbers (np.ndarray): Atomic numbers of the inference system.
+        offblocks (list[np.ndarray]): List of the off-diagonal Hamiltonian blocks.
+        onblocks (list[np.ndarray]): List of the on-diagonal Hamiltonian blocks.
+        species_basis_size_dict (dict[int, int]): Dictionary in which the keys are atomic numbers and values 
+            are the number of basis functions for each atomic species.
+
+    Returns:
+        np.ndarray: The Hamiltonian matrix.
+    """
+    spd = species_basis_size_dict
+
+    idxs = np.array([0] + [spd[i] for i in numbers], dtype=np.int32)
+    idxs = np.cumsum(idxs)
+
+    hmatrix = [[None] * len(numbers) for _ in range(len(numbers))]
+
+    for onblock_stack in onblocks:
+        for onblock, idx in zip(*onblock_stack):
+            hmatrix[idx][idx] = onblock
+
+    for offblock_stack in offblocks:
+        for offblock, pair_idx in zip(*offblock_stack):
+            i, j = pair_idx
+            # TODO: replace this loop and these conditionals with a groupby and reduce
+            if hmatrix[i][j] is None:
+                hmatrix[i][j] = offblock
+            else:
+                hmatrix[i][j] += offblock
+
+    blocks = np.asarray(hmatrix, dtype='object')
+    if blocks.ndim == 2:
+        hmatrix = block_array(hmatrix)
+        return (0.5 * (hmatrix + hmatrix.T.conj())).toarray()
+    elif blocks.ndim == 4:
+        hmatrix = np.block(hmatrix)
+        return 0.5 * (hmatrix + hmatrix.T.conj())
+
+def blocked_matrix_to_hmatrix(blocked_hamiltonian: BlockedMatrix,
+                              atoms: ase.Atoms,
+                              species_basis_size_dict: dict[int, int],
+                              ij: np.ndarray) -> np.ndarray:
+    """This is only useful when shuffling the read in matrix is required.
+    Shuffling is automatically handled by BlockedMatrix, but we need to
+    reassemble the shuffled H matrix to write it out.
+
+    Args:
+        blocked_hamiltonian (BlockedMatrix): Blocked Hamiltonian matrix.
+        atoms (ase.Atoms): Atomic structure
+        species_basis_size_dict (dict[int, int]): keys are atomic species, values are number of basis functions.
+        ij (np.ndarray): Neighbor list.
+
+    Returns:
+        np.ndarray: The reassembled Hamiltonian matrix.
+    """
+    # Arrange off-diagonal blocks into a list of tuples.
+    # Each tuple contains a list of off-diagonal blocks and the ij of those blocks.
+
+    atomic_number_pairs = atoms.numbers[ij]
+    assert atomic_number_pairs.shape[-1] == 2
+    # unique species pairs
+    unique_elementpairs = np.unique(atomic_number_pairs, axis=0)
+
+    pair_hblocks_list = []
+    for pair in unique_elementpairs:
+        # indices of all pairs with this unique combination of atoms
+        boolean_indices_of_pairs = np.all(atomic_number_pairs == pair, axis=1)
+        # pre-allocate blocks in shape (n_pairs, n_bf_1, n_bf_2)
+        hblocks_of_pair = np.zeros((sum(boolean_indices_of_pairs), 
+                                    *[species_basis_size_dict[s] for s in pair])).astype(np.float32)
+        # for each pair of neighbors
+        for i, tij in enumerate(ij[boolean_indices_of_pairs]):
+            # get the hblock of that pair of neighbors, shuffle, and store in our array
+            hblocks_of_pair[i] = blocked_hamiltonian.get_block(*tij)
+
+        pair_hblocks_list.append((hblocks_of_pair, ij[boolean_indices_of_pairs]))
+
+    # Arrange on-diagonal blocks into a list of tuples.
+    # Each tuple contains the on-diagonal blocks for a species and the index of
+    # H where the block belongs.
+    
+    # get atom indices
+    atom_indices = np.arange(len(atoms.numbers))
+
+    species_hblocks_list = []
+    # for each species
+    for an in np.unique(atoms.numbers):
+        # get indices of atoms that match the current species
+        boolean_indices_of_species = (an == atoms.numbers)
+        # Allocate numpy array of the correct size, (nblocks, block size, block size)
+        species_hblocks = np.zeros((sum(boolean_indices_of_species), 
+                                    species_basis_size_dict[an], 
+                                    species_basis_size_dict[an])).astype(np.float32)
+        for i, ai in enumerate(atom_indices[boolean_indices_of_species]):
+            species_hblocks[i] = blocked_hamiltonian.get_block(ai,ai)
+        
+        species_hblocks = np.array(species_hblocks)#.astype(np.float32) # no array problems here since species-wise on-diags always have the same size
+        # append species-wise blocks and the corresponding atom indices to our return list
+        species_hblocks_list.append((species_hblocks, atom_indices[boolean_indices_of_species]))
+
+    # Assemble H
+    hmatrix = make_hmatrix(atoms.numbers,
+                           offblocks=pair_hblocks_list,
+                           onblocks=species_hblocks_list,
+                           species_basis_size_dict=species_basis_size_dict)
+    return hmatrix
+
+def group_ijD_by_S(ij: np.ndarray,
+                   D: np.ndarray,
+                   all_S: np.ndarray,
+                   target_S: np.ndarray
+                  ) -> dict[tuple[int], dict[str, np.ndarray]]:
+    indices = {tuple(s) : np.nonzero(np.all(s == all_S, axis=1)) for s in target_S}
+    grouped_ijD = {k : {'ij' : ij[v], 'D' : D[v]} for k, v in indices.items()}
+    
+    return grouped_ijD
 
 class VectorPermuter:
     def __init__(self, from_array, to_array):
